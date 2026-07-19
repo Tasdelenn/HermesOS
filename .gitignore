@@ -1,15 +1,18 @@
 # Secrets
 secrets/
+!secrets/README.md
 *.env
 .env
 .env.*
 
 # Logs
 logs/
+!logs/README.md
 *.log
 
 # Backups
 backups/
+!backups/README.md
 
 # OS files
 Thumbs.db
