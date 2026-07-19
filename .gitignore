@@ -1,0 +1,35 @@
+# Secrets
+secrets/
+*.env
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Rust build output
+target/
+
+# Node build output
+node_modules/
+dist/
+
+# Python cache
+__pycache__/
+*.pyc
