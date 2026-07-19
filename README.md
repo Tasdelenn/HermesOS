@@ -234,6 +234,13 @@ Do not change architectural decisions without creating a new ADR.
 
 # Documentation
 
+Current implementation and continuation notes:
+
+- [[docs/05-Current-State|Current State]]
+- [[docs/07-AI-Handoff|AI Handoff Guide]]
+- [[docs/09-Worker-Protocol|Worker Protocol v1]]
+- [[docs/adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|Worker Enrollment and mTLS Migration]]
+
 Start here:
 
 - [[docs/00-Vision|Vision]]

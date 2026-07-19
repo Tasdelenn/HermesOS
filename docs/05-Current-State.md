@@ -27,10 +27,19 @@ Kalıcı olan:
 
 bilgileridir.
 
+## Worker Prototype
+
+İlk Rust Worker prototipi `workers/agent-core` altında oluşturuldu.
+
+- Yerel kimlik, rol ve capability allowlist'i okur.
+- Worker Protocol v1 JSON mesajlarını tanımlar.
+- `system.info` capability'sini yalnızca yerel allowlist izin verirse çalıştırır.
+- Capability dışındaki görevleri başarısız `task_result` ile reddeder.
+
 ## Sonraki Teknik Adım
 
-İlk Worker Agent prototipinin hazırlanması.
+Worker ile Hermes Brain arasındaki kayıt ve kimlik doğrulama modeli belirlendi:
+cihaz başına tek kullanımlık registration token ile ilk kayıt; hedef durumda
+mTLS. Sonraki uygulama adımı bu akışa uygun WebSocket istemcisidir.
 
-Teknoloji:
-
-Rust
+Detay: [[adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|ADR-009]].

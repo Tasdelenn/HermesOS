@@ -26,9 +26,30 @@ flowchart TD
     Devices[Physical Devices]
 
     Telegram --> Hermes
-    Hermes --> Workers
+    Workers -->|WSS: worker-initiated| Hermes
     Workers --> Devices
 ```
+
+## Worker Enrollment and Trust
+
+```mermaid
+flowchart LR
+    Device[New physical device]
+    Token[Single-use registration token]
+    Worker[Hermes Worker]
+    Brain[Hermes Brain]
+    Certificate[mTLS certificate]
+
+    Device --> Worker
+    Token --> Worker
+    Worker -->|initial registration over TLS| Brain
+    Brain -->|future target: issue/approve| Certificate
+    Certificate --> Worker
+    Worker -->|future mTLS WSS session| Brain
+```
+
+İlk kayıt token ile yapılır; kalıcı bağlantı güvenliği için hedef mimari mTLS'tir.
+Ayrıntı için [[adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|ADR-009]].
 
 ---
 

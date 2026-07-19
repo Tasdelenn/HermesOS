@@ -36,3 +36,4 @@ dist/
 # Python cache
 __pycache__/
 *.pyc
+config/worker.conf
