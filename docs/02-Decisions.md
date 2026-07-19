@@ -116,3 +116,28 @@ Sistem mümkün olduğunca:
 - Git
 
 gibi açık standartları kullanacak.
+
+---
+
+# ADR-006: Device Independence
+
+## Karar
+
+HermesOS fiziksel cihazlara bağlı olmayacaktır.
+
+Cihazlar değiştirilebilir worker node olarak kabul edilir.
+
+## Sebep
+
+Donanım yaşam döngüsü yazılım yaşam döngüsünden farklıdır.
+
+Bir cihazın kaybı veya değişimi sistem mimarisini bozmamalıdır.
+
+## Uygulama
+
+- Cihazlar rol ile tanımlanır.
+- Kimlikler merkezi yönetilir.
+- Hafıza merkezi tutulur.
+- Capability sistemi kullanılır.
+- Yeni cihazlar kolayca sisteme dahil edilir.
+
