@@ -38,12 +38,15 @@ Hakan
 
 - VPS seçilmedi
 - Hermes Brain kurulmadı
-- Worker kodu yazılmadı
+- Worker WebSocket bağlantısı uygulanmadı
 - Telegram bağlanmadı
 
 ## Bir sonraki adım
 
-Rust Worker prototipi.
+Registration token ile ilk kayıt akışına uygun Worker WebSocket bağlantısını
+uygulamak. Normal oturumlar için hedef mTLS'tir.
+
+Karar kaydı: [[adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|ADR-009]].
 
 ## AI'dan beklenen davranış
 

@@ -141,3 +141,19 @@ Bir cihazın kaybı veya değişimi sistem mimarisini bozmamalıdır.
 - Capability sistemi kullanılır.
 - Yeni cihazlar kolayca sisteme dahil edilir.
 
+---
+
+# ADR-009: Worker Enrollment ve mTLS Geçişi
+
+## Karar
+
+İlk Worker kaydı, cihaz başına benzersiz, süreli ve tek kullanımlık registration
+token ile yapılacaktır. Normal Worker bağlantıları için uzun vadeli hedef mTLS'tir.
+
+## Sebep
+
+İlk prototipin kurulumu basit olmalı; buna karşılık kalıcı token tabanlı
+kimlik doğrulama uzun vadede yeterli güvenlik sağlamaz.
+
+Detay: [[adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|ADR-009]].
+
