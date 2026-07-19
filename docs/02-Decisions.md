@@ -1,0 +1,118 @@
+# HermesOS Architecture Decisions
+
+Bu dosya HermesOS mimarisindeki önemli kararları ve nedenlerini kayıt altında tutar.
+
+---
+
+# ADR-001: Dağıtık Agent Mimarisi
+
+## Karar
+
+Hermes doğrudan cihazları yönetmeyecek.
+
+Arada Worker katmanı bulunacak.
+
+## Sebep
+
+- Güvenlik
+- Yetki kontrolü
+- Farklı işletim sistemlerini destekleme
+- Hata izolasyonu
+
+## Mimari
+
+```
+Hermes Brain
+
+      |
+
+      v
+
+Worker Agent
+
+      |
+
+      v
+
+Device
+```
+
+---
+
+# ADR-002: Cloud Brain + Local Worker
+
+## Karar
+
+LLM merkezi olarak VPS üzerinde çalışacak.
+
+Yerel cihazlar görev uygulayacak.
+
+## Sebep
+
+Yerel cihazların:
+
+- GPU gücü sınırlı
+- RAM kapasitesi düşük
+- sürekli çalışmaya uygun değil
+
+olması.
+
+---
+
+# ADR-003: Hafıza Sistemi
+
+## Karar
+
+Hermes hafızası katmanlı olacak.
+
+Katmanlar:
+
+1. Working Memory
+
+Geçici görev bilgileri.
+
+2. Long Term Memory
+
+Veritabanı ve vektör hafıza.
+
+3. Crystal Memory
+
+Obsidian Markdown bilgi bankası.
+
+---
+
+# ADR-004: Rust Kullanımı
+
+## Karar
+
+Performans kritik servislerde Rust kullanılacak.
+
+Örnek:
+
+- Worker Agent
+- Network servisleri
+- Edge daemon
+- CLI araçları
+
+## Sebep
+
+- Düşük RAM kullanımı
+- Tek binary dağıtım
+- Raspberry Pi uyumluluğu
+- Güvenli sistem programlama
+
+---
+
+# ADR-005: Açık Standartlar
+
+## Karar
+
+Sistem mümkün olduğunca:
+
+- MQTT
+- REST API
+- WebSocket
+- Markdown
+- Git
+
+gibi açık standartları kullanacak.
