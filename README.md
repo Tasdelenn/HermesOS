@@ -218,6 +218,20 @@ Knowledge should survive:
 
 ---
 
+## AI Agent Continuation
+
+For AI assistants continuing this project:
+
+Read first:
+
+1. docs/07-AI-Handoff.md
+2. docs/05-Current-State.md
+3. docs/02-Decisions.md
+
+Do not change architectural decisions without creating a new ADR.
+
+---
+
 # Documentation
 
 Start here:
@@ -238,3 +252,5 @@ Start here:
 # License
 
 To be decided.
+
+---
