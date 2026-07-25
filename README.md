@@ -220,13 +220,20 @@ Knowledge should survive:
 
 ## AI Agent Continuation
 
-For AI assistants continuing this project:
+This project is developed in parallel by multiple AI agents and human developers.
 
-Read first:
+**Rules:**
+- ADRs (`docs/adr/`) are the single source of truth for architectural decisions.
+- Each AI agent works on its own branch (`agent/<name>`). No direct pushes to master.
+- See `docs/08-Branch-Strategy.md` for branch conventions.
+- See `rules.md` for all project rules.
+
+**Read first:**
 
 1. docs/07-AI-Handoff.md
 2. docs/05-Current-State.md
 3. docs/02-Decisions.md
+4. docs/08-Branch-Strategy.md
 
 Do not change architectural decisions without creating a new ADR.
 
@@ -238,6 +245,7 @@ Current implementation and continuation notes:
 
 - [[docs/05-Current-State|Current State]]
 - [[docs/07-AI-Handoff|AI Handoff Guide]]
+- [[docs/08-Branch-Strategy|Branch Strategy]]
 - [[docs/09-Worker-Protocol|Worker Protocol v1]]
 - [[docs/adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|Worker Enrollment and mTLS Migration]]
 
