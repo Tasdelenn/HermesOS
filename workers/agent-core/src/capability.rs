@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde_json::{json, Value};
 
-use crate::protocol::{BrainMessage, WorkerMessage};
+use hermes_protocol::{BrainMessage, WorkerMessage};
 
 pub const SYSTEM_INFO: &str = "system.info";
 
@@ -34,24 +34,25 @@ impl CapabilityRegistry {
         handler.execute(input)
     }
 
-    pub fn execute_task(&self, message: BrainMessage) -> WorkerMessage {
+    pub fn execute_task(&self, message: BrainMessage) -> Option<WorkerMessage> {
         match message {
             BrainMessage::Task {
                 task_id,
                 capability,
                 input,
             } => match self.execute(&capability, &input) {
-                Ok(output) => WorkerMessage::TaskResult {
+                Ok(output) => Some(WorkerMessage::TaskResult {
                     task_id,
                     success: true,
                     output,
-                },
-                Err(error) => WorkerMessage::TaskResult {
+                }),
+                Err(error) => Some(WorkerMessage::TaskResult {
                     task_id,
                     success: false,
                     output: json!({ "error": error }),
-                },
+                }),
             },
+            _ => None,
         }
     }
 }
@@ -99,11 +100,18 @@ mod tests {
 
         assert_eq!(
             result,
-            WorkerMessage::TaskResult {
+            Some(WorkerMessage::TaskResult {
                 task_id: "task-123".to_string(),
                 success: false,
                 output: json!({ "error": "capability is not allowed: system.info" }),
-            }
+            })
         );
+    }
+
+    #[test]
+    fn non_task_messages_return_none() {
+        let registry = CapabilityRegistry::from_allowlist(&[SYSTEM_INFO.to_string()]);
+        let result = registry.execute_task(BrainMessage::enrollment_accepted("w1".into()));
+        assert_eq!(result, None);
     }
 }

@@ -13,6 +13,7 @@ kaynağı izlenebilir olmalıdır.
 ```
 master                       <- kararlı, merge edilmiş kod
   |
+  +-- agent/antigravity      <- Antigravity Agent
   +-- agent/hermes           <- Hermes Agent (Nous Research)
   +-- agent/gemini           <- Gemini
   +-- agent/worker-*         <- eski ajan branch'leri

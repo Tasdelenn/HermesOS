@@ -38,7 +38,9 @@ __pycache__/
 *.pyc
 
 # Worker config (contains local values)
-config/worker.conf
+config/*.conf
+!config/worker.example.conf
+workers/**/config/*.conf
 
 # Local AI tools and caches
 tools/
