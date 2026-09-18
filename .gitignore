@@ -36,4 +36,12 @@ dist/
 # Python cache
 __pycache__/
 *.pyc
-config/worker.conf
+
+# Worker config (contains local values)
+config/*.conf
+!config/worker.example.conf
+workers/**/config/*.conf
+
+# Local AI tools and caches
+tools/
+npm-cache/

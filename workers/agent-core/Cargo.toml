@@ -6,9 +6,16 @@ description = "HermesOS edge worker prototype"
 license = "UNLICENSED"
 
 [dependencies]
+hermes-protocol = { path = "../../protocol" }
+futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = "0.28"
 
 [[bin]]
 name = "hermes-worker"
 path = "src/main.rs"
+
+[dev-dependencies]
+hermes-brain = { path = "../../brain" }

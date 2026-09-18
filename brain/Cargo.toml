@@ -1,0 +1,29 @@
+[package]
+name = "hermes-brain"
+version = "0.1.0"
+edition = "2021"
+description = "HermesOS Brain service - WebSocket server for worker orchestration"
+license = "UNLICENSED"
+
+[dependencies]
+hermes-protocol = { path = "../protocol" }
+futures-util = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = "0.28"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[lib]
+name = "hermes_brain"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hermes-brain"
+path = "src/main.rs"
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["json"] }

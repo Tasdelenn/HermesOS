@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "protocol",
+    "brain",
+    "workers/agent-core",
+]
+
+resolver = "2"

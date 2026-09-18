@@ -175,20 +175,21 @@ HermesOS/
 ✅ Project structure created  
 ✅ Git repository initialized  
 ✅ Architecture documentation created  
-✅ Architecture Decision Records started  
+✅ Architecture Decision Records started (ADR-001 ~ ADR-013)  
 ✅ Device Independence principle established  
 ✅ Obsidian Vault structure created  
-✅ Worker architecture planned  
+✅ Worker architecture planned and implemented (Rust `workers/agent-core`)  
+✅ Shared protocol crate created (`protocol/`)  
+✅ Hermes Brain service implemented (WebSocket + HTTP API + Task Registry)  
+✅ End-to-end task dispatch and execution verified  
 
 
 ## Next Steps
 
-- Create first Rust Worker Agent
-- Design worker identity system
-- Build capability framework
-- Setup cloud Hermes Brain
-- Connect Telegram interface
-- Add persistent memory system
+- Implement mTLS worker authentication and certificate lifecycle (ADR-009)
+- Connect Telegram bot interface
+- Add persistent memory and Obsidian Vault knowledge retrieval system
+- Expand Worker capabilities (file operations, shell execution, Home Assistant)
 
 ---
 
@@ -220,13 +221,20 @@ Knowledge should survive:
 
 ## AI Agent Continuation
 
-For AI assistants continuing this project:
+This project is developed in parallel by multiple AI agents and human developers.
 
-Read first:
+**Rules:**
+- ADRs (`docs/adr/`) are the single source of truth for architectural decisions.
+- Each AI agent works on its own branch (`agent/<name>`). No direct pushes to master.
+- See `docs/08-Branch-Strategy.md` for branch conventions.
+- See `rules.md` for all project rules.
+
+**Read first:**
 
 1. docs/07-AI-Handoff.md
 2. docs/05-Current-State.md
 3. docs/02-Decisions.md
+4. docs/08-Branch-Strategy.md
 
 Do not change architectural decisions without creating a new ADR.
 
@@ -238,8 +246,12 @@ Current implementation and continuation notes:
 
 - [[docs/05-Current-State|Current State]]
 - [[docs/07-AI-Handoff|AI Handoff Guide]]
+- [[docs/08-Branch-Strategy|Branch Strategy]]
 - [[docs/09-Worker-Protocol|Worker Protocol v1]]
 - [[docs/adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|Worker Enrollment and mTLS Migration]]
+- [[docs/adr/ADR-011-Brain-Service-Architecture|Brain Service Architecture]]
+- [[docs/adr/ADR-012-HTTP-API-Bind-Issue|HTTP API Bind Issue (Resolved)]]
+- [[docs/adr/ADR-013-Task-Registry-and-HTTP-API-Architecture|Task Registry and HTTP API Architecture]]
 
 Start here:
 

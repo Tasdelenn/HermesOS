@@ -1,18 +1,24 @@
 mod capability;
-mod protocol;
+mod client;
 
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+use client::WorkerClient;
+
 #[derive(Debug, PartialEq, Eq)]
-struct WorkerConfig {
-    worker_id: String,
-    role: String,
-    capabilities: Vec<String>,
+pub struct WorkerConfig {
+    pub worker_id: String,
+    pub role: String,
+    pub capabilities: Vec<String>,
+    pub brain_url: String,
+    pub registration_token: Option<String>,
+    pub heartbeat_interval_secs: u64,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let config_path = match config_path_from_args() {
         Ok(path) => path,
         Err(error) => exit_with_error(&error),
@@ -26,13 +32,18 @@ fn main() {
     });
     let config = parse_config(&contents).unwrap_or_else(|error| exit_with_error(&error));
 
-    println!("Hermes worker started");
-    println!("worker_id: {}", config.worker_id);
-    println!("role: {}", config.role);
-    println!("capabilities:");
-    for capability in config.capabilities {
-        println!("- {capability}");
-    }
+        println!("Hermes worker starting");
+        println!("worker_id: {}", config.worker_id);
+        println!("role: {}", config.role);
+        println!("brain_url: {}", config.brain_url);
+
+        let mut client = WorkerClient::connect(config)
+            .await
+            .unwrap_or_else(|error| exit_with_error(&error));
+
+        if let Err(error) = client.run().await {
+            exit_with_error(&error);
+        }
 }
 
 fn config_path_from_args() -> Result<PathBuf, String> {
@@ -55,6 +66,9 @@ fn parse_config(contents: &str) -> Result<WorkerConfig, String> {
     let mut worker_id = None;
     let mut role = None;
     let mut capabilities = None;
+    let mut brain_url = None;
+    let mut registration_token = None;
+    let mut heartbeat_interval_secs = None;
 
     for (index, line) in contents.lines().enumerate() {
         let line_number = index + 1;
@@ -88,6 +102,15 @@ fn parse_config(contents: &str) -> Result<WorkerConfig, String> {
                 }
                 capabilities = Some(parsed);
             }
+            "brain_url" => brain_url = Some(value.to_owned()),
+            "registration_token" => registration_token = Some(value.to_owned()),
+            "heartbeat_interval_secs" => {
+                heartbeat_interval_secs = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| format!("heartbeat_interval_secs must be a number, got: {value}"))?,
+                );
+            }
             unknown => return Err(format!("unknown configuration key: {unknown}")),
         }
     }
@@ -97,6 +120,9 @@ fn parse_config(contents: &str) -> Result<WorkerConfig, String> {
         role: required_value("role", role)?,
         capabilities: capabilities
             .ok_or_else(|| "missing required key: capabilities".to_string())?,
+        brain_url: brain_url.unwrap_or_else(|| "ws://127.0.0.1:9000".to_string()),
+        registration_token,
+        heartbeat_interval_secs: heartbeat_interval_secs.unwrap_or(30),
     })
 }
 
@@ -116,7 +142,7 @@ mod tests {
     #[test]
     fn parses_valid_config() {
         let config = parse_config(
-            "worker_id=windows-dev\nrole=development\ncapabilities=system.info, files.read\n",
+            "worker_id=windows-dev\nrole=development\ncapabilities=system.info, files.read\nbrain_url=ws://brain:9000\nregistration_token=tok-abc\nheartbeat_interval_secs=15\n",
         )
         .unwrap();
         assert_eq!(
@@ -125,14 +151,37 @@ mod tests {
                 worker_id: "windows-dev".to_string(),
                 role: "development".to_string(),
                 capabilities: vec!["system.info".to_string(), "files.read".to_string()],
+                brain_url: "ws://brain:9000".to_string(),
+                registration_token: Some("tok-abc".to_string()),
+                heartbeat_interval_secs: 15,
             }
         );
     }
 
     #[test]
+    fn uses_defaults_for_optional_fields() {
+        let config = parse_config(
+            "worker_id=minimal\nrole=iot\ncapabilities=system.info\n",
+        )
+        .unwrap();
+        assert_eq!(config.brain_url, "ws://127.0.0.1:9000");
+        assert_eq!(config.registration_token, None);
+        assert_eq!(config.heartbeat_interval_secs, 30);
+    }
+
+    #[test]
     fn rejects_unknown_keys() {
-        let error = parse_config("worker_id=a\nrole=b\ncapabilities=system.info\nbrain_url=x\n")
+        let error = parse_config("worker_id=a\nrole=b\ncapabilities=system.info\nbrain_url=x\nunknown_key=y\n")
             .unwrap_err();
-        assert_eq!(error, "unknown configuration key: brain_url");
+        assert_eq!(error, "unknown configuration key: unknown_key");
+    }
+
+    #[test]
+    fn rejects_invalid_heartbeat() {
+        let error = parse_config(
+            "worker_id=a\nrole=b\ncapabilities=system.info\nheartbeat_interval_secs=not-a-number\n",
+        )
+        .unwrap_err();
+        assert!(error.contains("must be a number"));
     }
 }
