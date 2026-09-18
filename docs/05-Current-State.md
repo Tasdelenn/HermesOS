@@ -63,3 +63,34 @@ Workspace genelinde 37 test başarıyla geçmektedir:
 1. Normal oturumlar ve production iletişimi için mTLS geçişi ([[adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|ADR-009]]).
 2. Harici kullanıcı etkileşimi için Telegram Bot arayüzü entegrasyonu.
 3. Uzun süreli hafıza ve bilgi tabanı (Obsidian Vault) entegrasyonu.
+---
+
+# Checkpoint - 20.09.2026 (Servis Kurulumu)
+
+## Tamamlananlar
+- **`agent/antigravity` → `master` merge edildi** — Rust brain (WS 9000 + HTTP 9001), protocol crate, worker WebSocket client master'da.
+- **Python brain prototipi** korundu (`scripts/brain-server.py`, WS 8765) — `scripts/README-BrainServer.md` ile belgelendi.
+- **Systemd servisleri kuruldu ve çalışıyor**:
+  - `hermes-brain.service` → Rust brain (127.0.0.1:9000 + 9001)
+  - `hermes-brain-ws.service` → Python prototip (0.0.0.0:8765)
+  - `hermes-worker.service` → Rust worker (`rpi-test-worker`, brain'e bağlı, heartbeat 30s)
+- Kurulum rehberi: [`systemd/README.md`](../systemd/README.md)
+
+## Doğrulananlar
+- Rust workspace testleri yeşil (37 test, 0 hata)
+- `GET /health` → `workers_connected: 1`
+- `GET /workers` → `rpi-test-worker` bağlı, heartbeat güncel
+- Worker brain'e bağlandı, hello gönderdi, heartbeat döngüsü aktif
+
+## Aktif Mimari
+```
+hermes-brain.service (Rust, :9000 WS + :9001 HTTP)
+        ↑ bağlantı (hello/heartbeat/task)
+hermes-worker.service (Rust worker)
+hermes-brain-ws.service (Python prototip, :8765, ayrı)
+```
+
+## Sonraki Adımlar
+- Telegram bot arayüzü entegrasyonu
+- mTLS geçişi (ADR-009)
+- Uzun süreli hafıza / Obsidian entegrasyonu
