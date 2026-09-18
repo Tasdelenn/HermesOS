@@ -92,6 +92,14 @@ Responsibilities:
 - memory retrieval
 - decision making
 
+### Brain implementations
+
+- **Rust brain (`brain/`)** — production target; axum HTTP API, Task Registry,
+  E2E task execution loop (ADR-011, ADR-012, ADR-013).
+- **Python prototype (`scripts/brain-server.py`)** — ADR-008/009 WebSocket
+  prototype for fast worker-brain flow validation. See
+  `scripts/README-BrainServer.md`.
+
 
 ## Worker Agents
 
