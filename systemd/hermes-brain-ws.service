@@ -1,0 +1,15 @@
+[Unit]
+Description=HermesOS Brain WebSocket Prototype (Python)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=haqan
+WorkingDirectory=/home/haqan/Dev/Hermes/HermesOS
+ExecStart=/home/haqan/Dev/Hermes/HermesOS/.venv/bin/python /home/haqan/Dev/Hermes/HermesOS/scripts/brain-server.py --port 8765
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

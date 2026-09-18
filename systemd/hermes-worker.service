@@ -1,0 +1,15 @@
+[Unit]
+Description=HermesOS Worker (Rust — connects to Hermes Brain)
+After=hermes-brain.service
+Requires=hermes-brain.service
+
+[Service]
+Type=simple
+User=haqan
+WorkingDirectory=/home/haqan/Dev/Hermes/HermesOS
+ExecStart=/home/haqan/Dev/Hermes/HermesOS/target/debug/hermes-worker --config /home/haqan/Dev/Hermes/HermesOS/config/worker.conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

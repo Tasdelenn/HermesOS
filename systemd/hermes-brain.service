@@ -1,0 +1,16 @@
+[Unit]
+Description=HermesOS Brain (Rust — WebSocket + HTTP API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=haqan
+WorkingDirectory=/home/haqan/Dev/Hermes/HermesOS
+ExecStart=/home/haqan/Dev/Hermes/HermesOS/target/debug/hermes-brain 127.0.0.1:9000 127.0.0.1:9001
+Restart=on-failure
+RestartSec=5
+Environment=RUST_BACKTRACE=1
+
+[Install]
+WantedBy=multi-user.target
