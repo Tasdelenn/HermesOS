@@ -157,3 +157,20 @@ kimlik doğrulama uzun vadede yeterli güvenlik sağlamaz.
 
 Detay: [[adr/ADR-009-Worker-Enrollment-and-mTLS-Migration|ADR-009]].
 
+---
+
+# ADR-014: Worker Hello Kimlik Doğrulaması
+
+## Karar
+
+Enrollment sırasında Brain her worker'a özel rastgele bir credential üretir;
+`hello` yalnızca kayıtlı `worker_id` ve doğru credential ile kabul edilir.
+Brain yalnızca credential'ın SHA-256 özetini saklar.
+
+## Sebep
+
+Önceden `hello` kimlik doğrulamasız kabul ediliyordu; token tabanlı enrollment
+bu yüzden fiilen atlanabiliyordu.
+
+Detay: [[adr/ADR-014-Worker-Hello-Authentication|ADR-014]].
+
