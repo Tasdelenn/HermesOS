@@ -33,7 +33,10 @@ impl TaskStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Timeout | TaskStatus::Cancelled
+            TaskStatus::Completed
+                | TaskStatus::Failed
+                | TaskStatus::Timeout
+                | TaskStatus::Cancelled
         )
     }
 }
@@ -237,19 +240,17 @@ impl TaskService {
             {
                 Some(wid) => wid,
                 None => {
-                    return Err(format!("no worker available with capability: {}", capability));
+                    return Err(format!(
+                        "no worker available with capability: {}",
+                        capability
+                    ));
                 }
             }
         };
 
         let mut record = self
             .task_registry
-            .create_task(
-                task_id,
-                Some(chosen_worker),
-                capability,
-                input,
-            )
+            .create_task(task_id, Some(chosen_worker), capability, input)
             .await;
 
         record.status = TaskStatus::Running;
@@ -263,12 +264,7 @@ impl TaskService {
     }
 
     /// Process a TaskResult received over the WebSocket transport.
-    pub async fn handle_worker_result(
-        &self,
-        task_id: &str,
-        success: bool,
-        output: Value,
-    ) -> bool {
+    pub async fn handle_worker_result(&self, task_id: &str, success: bool, output: Value) -> bool {
         if success {
             self.task_registry.complete_task(task_id, output).await
         } else {
@@ -304,13 +300,21 @@ mod tests {
         assert_eq!(task.status, TaskStatus::Pending);
 
         // Complete task
-        assert!(registry.complete_task("task-1", json!({"os": "linux"})).await);
+        assert!(
+            registry
+                .complete_task("task-1", json!({"os": "linux"}))
+                .await
+        );
         let fetched = registry.get_task("task-1").await.unwrap();
         assert_eq!(fetched.status, TaskStatus::Completed);
         assert_eq!(fetched.result, Some(json!({"os": "linux"})));
 
         // Idempotency: subsequent duplicate complete should return false and not overwrite
-        assert!(!registry.complete_task("task-1", json!({"os": "windows"})).await);
+        assert!(
+            !registry
+                .complete_task("task-1", json!({"os": "windows"}))
+                .await
+        );
         let fetched_after = registry.get_task("task-1").await.unwrap();
         assert_eq!(fetched_after.result, Some(json!({"os": "linux"})));
     }
@@ -323,7 +327,12 @@ mod tests {
 
         let (tx, mut rx) = mpsc::unbounded_channel();
         worker_reg
-            .register("worker-a".into(), "dev".into(), vec!["system.info".into()], tx)
+            .register(
+                "worker-a".into(),
+                "dev".into(),
+                vec!["system.info".into()],
+                tx,
+            )
             .await;
 
         let record = service
@@ -336,7 +345,11 @@ mod tests {
         // Worker receives task over channel
         let received = rx.recv().await.unwrap();
         match received {
-            BrainMessage::Task { task_id, capability, .. } => {
+            BrainMessage::Task {
+                task_id,
+                capability,
+                ..
+            } => {
                 assert_eq!(task_id, record.task_id);
                 assert_eq!(capability, "system.info");
 

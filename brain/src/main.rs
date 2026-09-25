@@ -80,14 +80,9 @@ async fn main() {
         let task_service = task_service.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = hermes_brain::handle_connection(
-                stream,
-                peer,
-                enrollment,
-                registry,
-                task_service,
-            )
-            .await
+            if let Err(e) =
+                hermes_brain::handle_connection(stream, peer, enrollment, registry, task_service)
+                    .await
             {
                 eprintln!("hermes-brain: [{peer}] connection error: {e}");
             }

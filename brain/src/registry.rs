@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{mpsc, Mutex};
 
 use hermes_protocol::BrainMessage;
 
@@ -135,8 +135,13 @@ mod tests {
         let (tx2, _rx2) = mpsc::unbounded_channel();
         reg.register("w1".into(), "dev".into(), vec!["system.info".into()], tx1)
             .await;
-        reg.register("w2".into(), "iot".into(), vec!["homeassistant.control".into()], tx2)
-            .await;
+        reg.register(
+            "w2".into(),
+            "iot".into(),
+            vec!["homeassistant.control".into()],
+            tx2,
+        )
+        .await;
         let found = reg.find_by_capability("system.info").await;
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].worker_id, "w1");

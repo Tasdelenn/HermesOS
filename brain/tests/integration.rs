@@ -15,7 +15,13 @@ use hermes_brain::registry::WorkerRegistry;
 use hermes_brain::tasks::{TaskRecord, TaskRegistry, TaskService, TaskStatus};
 
 /// Spin up the Brain with WS and HTTP on OS-assigned ports (127.0.0.1:0).
-async fn start_brain() -> (String, String, EnrollmentService, WorkerRegistry, TaskService) {
+async fn start_brain() -> (
+    String,
+    String,
+    EnrollmentService,
+    WorkerRegistry,
+    TaskService,
+) {
     let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let ws_addr = ws_listener.local_addr().unwrap().to_string();
 
@@ -60,15 +66,19 @@ async fn start_brain() -> (String, String, EnrollmentService, WorkerRegistry, Ta
     // Give servers a moment to initialize
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    (ws_addr, http_addr, enrollment, worker_registry, task_service)
+    (
+        ws_addr,
+        http_addr,
+        enrollment,
+        worker_registry,
+        task_service,
+    )
 }
 
 /// Connect a plain WebSocket client to the brain.
 async fn connect_ws(
     addr: &str,
-) -> tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-> {
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
     let (ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}"))
         .await
         .unwrap();

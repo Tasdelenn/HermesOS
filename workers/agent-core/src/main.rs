@@ -32,18 +32,18 @@ async fn main() {
     });
     let config = parse_config(&contents).unwrap_or_else(|error| exit_with_error(&error));
 
-        println!("Hermes worker starting");
-        println!("worker_id: {}", config.worker_id);
-        println!("role: {}", config.role);
-        println!("brain_url: {}", config.brain_url);
+    println!("Hermes worker starting");
+    println!("worker_id: {}", config.worker_id);
+    println!("role: {}", config.role);
+    println!("brain_url: {}", config.brain_url);
 
-        let mut client = WorkerClient::connect(config)
-            .await
-            .unwrap_or_else(|error| exit_with_error(&error));
+    let mut client = WorkerClient::connect(config)
+        .await
+        .unwrap_or_else(|error| exit_with_error(&error));
 
-        if let Err(error) = client.run().await {
-            exit_with_error(&error);
-        }
+    if let Err(error) = client.run().await {
+        exit_with_error(&error);
+    }
 }
 
 fn config_path_from_args() -> Result<PathBuf, String> {
@@ -105,11 +105,9 @@ fn parse_config(contents: &str) -> Result<WorkerConfig, String> {
             "brain_url" => brain_url = Some(value.to_owned()),
             "registration_token" => registration_token = Some(value.to_owned()),
             "heartbeat_interval_secs" => {
-                heartbeat_interval_secs = Some(
-                    value
-                        .parse::<u64>()
-                        .map_err(|_| format!("heartbeat_interval_secs must be a number, got: {value}"))?,
-                );
+                heartbeat_interval_secs = Some(value.parse::<u64>().map_err(|_| {
+                    format!("heartbeat_interval_secs must be a number, got: {value}")
+                })?);
             }
             unknown => return Err(format!("unknown configuration key: {unknown}")),
         }
@@ -160,10 +158,8 @@ mod tests {
 
     #[test]
     fn uses_defaults_for_optional_fields() {
-        let config = parse_config(
-            "worker_id=minimal\nrole=iot\ncapabilities=system.info\n",
-        )
-        .unwrap();
+        let config =
+            parse_config("worker_id=minimal\nrole=iot\ncapabilities=system.info\n").unwrap();
         assert_eq!(config.brain_url, "ws://127.0.0.1:9000");
         assert_eq!(config.registration_token, None);
         assert_eq!(config.heartbeat_interval_secs, 30);
@@ -171,8 +167,10 @@ mod tests {
 
     #[test]
     fn rejects_unknown_keys() {
-        let error = parse_config("worker_id=a\nrole=b\ncapabilities=system.info\nbrain_url=x\nunknown_key=y\n")
-            .unwrap_err();
+        let error = parse_config(
+            "worker_id=a\nrole=b\ncapabilities=system.info\nbrain_url=x\nunknown_key=y\n",
+        )
+        .unwrap_err();
         assert_eq!(error, "unknown configuration key: unknown_key");
     }
 

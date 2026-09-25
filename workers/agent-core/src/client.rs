@@ -53,18 +53,12 @@ impl WorkerClient {
 
             match self.recv_brain().await? {
                 BrainMessage::EnrollmentAccepted { worker_id } => {
-                    println!(
-                        "hermes-worker: enrolled as '{worker_id}'"
-                    );
+                    println!("hermes-worker: enrolled as '{worker_id}'");
                     self.worker_id = worker_id;
                     Ok(())
                 }
-                BrainMessage::Error { message } => {
-                    Err(format!("enrollment rejected: {message}"))
-                }
-                other => Err(format!(
-                    "unexpected response to enroll: {other:?}"
-                )),
+                BrainMessage::Error { message } => Err(format!("enrollment rejected: {message}")),
+                other => Err(format!("unexpected response to enroll: {other:?}")),
             }
         } else {
             let hello = WorkerMessage::hello(
@@ -86,8 +80,7 @@ impl WorkerClient {
 
         println!(
             "hermes-worker: connected as '{}', heartbeat every {}s",
-            worker_id,
-            self.config.heartbeat_interval_secs
+            worker_id, self.config.heartbeat_interval_secs
         );
 
         loop {

@@ -43,9 +43,7 @@ async fn start_brain() -> (
 /// Connect a plain WebSocket client to the brain.
 async fn connect(
     addr: &str,
-) -> tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-> {
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
     let (ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}"))
         .await
         .unwrap();

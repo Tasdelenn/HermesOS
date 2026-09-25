@@ -96,7 +96,8 @@ async fn list_workers_handler(State(state): State<AppState>) -> Json<Vec<WorkerI
                 role: w.role,
                 capabilities: w.capabilities,
                 connected_at_ms: now.saturating_duration_since(w.connected_at).as_millis() as u64,
-                last_heartbeat_ms: now.saturating_duration_since(w.last_heartbeat).as_millis() as u64,
+                last_heartbeat_ms: now.saturating_duration_since(w.last_heartbeat).as_millis()
+                    as u64,
             })
             .collect(),
     )
@@ -125,7 +126,11 @@ async fn list_tasks_handler(
     State(state): State<AppState>,
     Query(query): Query<ListTasksQuery>,
 ) -> Json<Vec<TaskRecord>> {
-    let tasks = state.task_service.task_registry().list_tasks(query.limit).await;
+    let tasks = state
+        .task_service
+        .task_registry()
+        .list_tasks(query.limit)
+        .await;
     Json(tasks)
 }
 
