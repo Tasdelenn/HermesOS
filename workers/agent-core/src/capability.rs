@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn non_task_messages_return_none() {
         let registry = CapabilityRegistry::from_allowlist(&[SYSTEM_INFO.to_string()]);
-        let result = registry.execute_task(BrainMessage::enrollment_accepted("w1".into()));
+        let result = registry.execute_task(BrainMessage::hello_accepted("w1".into()));
         assert_eq!(result, None);
     }
 }

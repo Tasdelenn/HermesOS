@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
 
+use hermes_brain::credentials::CredentialStore;
 use hermes_brain::enrollment::EnrollmentService;
 use hermes_brain::http::{create_router, AppState, HealthResponse, WorkerInfo};
 use hermes_brain::registry::WorkerRegistry;
@@ -29,11 +30,13 @@ async fn start_brain() -> (
     let http_addr = http_listener.local_addr().unwrap().to_string();
 
     let enrollment = EnrollmentService::new();
+    let credentials = CredentialStore::in_memory();
     let worker_registry = WorkerRegistry::new();
     let task_registry = TaskRegistry::new();
     let task_service = TaskService::new(task_registry, worker_registry.clone());
 
     let e = enrollment.clone();
+    let c = credentials.clone();
     let r = worker_registry.clone();
     let ts = task_service.clone();
 
@@ -55,10 +58,11 @@ async fn start_brain() -> (
                 Err(_) => break,
             };
             let e2 = e.clone();
+            let c2 = c.clone();
             let r2 = r.clone();
             let ts2 = ts.clone();
             tokio::spawn(async move {
-                let _ = hermes_brain::handle_connection(stream, peer, e2, r2, ts2).await;
+                let _ = hermes_brain::handle_connection(stream, peer, e2, c2, r2, ts2).await;
             });
         }
     });
@@ -96,6 +100,61 @@ fn parse_brain(msg: Message) -> BrainMessage {
     }
 }
 
+type Ws =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+async fn recv_brain(ws: &mut Ws) -> BrainMessage {
+    parse_brain(ws.next().await.unwrap().unwrap())
+}
+
+/// Enroll `worker_id` on `ws` with a fresh single-use token and return the
+/// per-worker secret issued by the Brain.
+async fn enroll(
+    ws: &mut Ws,
+    enrollment: &EnrollmentService,
+    worker_id: &str,
+    role: &str,
+    capabilities: Vec<String>,
+) -> String {
+    let token = format!("tok-{worker_id}-{}", uuid_like());
+    enrollment.add_token(token.clone()).await;
+    ws.send(send_json(&WorkerMessage::enroll(
+        token,
+        worker_id.into(),
+        role.into(),
+        capabilities,
+    )))
+    .await
+    .unwrap();
+    match recv_brain(ws).await {
+        BrainMessage::EnrollmentAccepted {
+            worker_id: accepted,
+            worker_secret,
+        } => {
+            assert_eq!(accepted, worker_id);
+            worker_secret
+        }
+        other => panic!("expected enrollment_accepted, got {other:?}"),
+    }
+}
+
+fn uuid_like() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+}
+
+async fn wait_until_disconnected(registry: &WorkerRegistry, worker_id: &str) {
+    for _ in 0..50 {
+        if registry.get(worker_id).await.is_none() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("worker '{worker_id}' still registered");
+}
+
 // -----------------------------------------------------------------------
 // WebSocket & Protocol Tests
 // -----------------------------------------------------------------------
@@ -116,11 +175,16 @@ async fn enrollment_happy_path() {
     ws.send(send_json(&enroll)).await.unwrap();
 
     let reply = ws.next().await.unwrap().unwrap();
-    let brain_msg = parse_brain(reply);
-    assert_eq!(
-        brain_msg,
-        BrainMessage::enrollment_accepted("test-worker".into())
-    );
+    match parse_brain(reply) {
+        BrainMessage::EnrollmentAccepted {
+            worker_id,
+            worker_secret,
+        } => {
+            assert_eq!(worker_id, "test-worker");
+            assert_eq!(worker_secret.len(), 64, "256-bit hex secret expected");
+        }
+        other => panic!("expected enrollment_accepted, got {other:?}"),
+    }
 
     let workers = registry.list().await;
     assert_eq!(workers.len(), 1);
@@ -149,19 +213,36 @@ async fn enrollment_rejects_bad_token() {
 }
 
 #[tokio::test]
-async fn hello_registers_worker() {
-    let (ws_addr, _http_addr, _enrollment, registry, _ts) = start_brain().await;
+async fn enroll_then_hello_works() {
+    let (ws_addr, _http_addr, enrollment, registry, _ts) = start_brain().await;
 
+    // First connection: enroll and receive the per-worker credential.
     let mut ws = connect_ws(&ws_addr).await;
+    let secret = enroll(
+        &mut ws,
+        &enrollment,
+        "my-worker",
+        "iot",
+        vec!["homeassistant.control".into()],
+    )
+    .await;
+    ws.close(None).await.unwrap();
+    wait_until_disconnected(&registry, "my-worker").await;
 
-    let hello = WorkerMessage::hello(
+    // Reconnect: hello with the stored credential is accepted.
+    let mut ws = connect_ws(&ws_addr).await;
+    ws.send(send_json(&WorkerMessage::hello(
         "my-worker".into(),
+        secret,
         "iot".into(),
         vec!["homeassistant.control".into()],
+    )))
+    .await
+    .unwrap();
+    assert_eq!(
+        recv_brain(&mut ws).await,
+        BrainMessage::hello_accepted("my-worker".into())
     );
-    ws.send(send_json(&hello)).await.unwrap();
-
-    tokio::time::sleep(Duration::from_millis(100)).await;
 
     let workers = registry.list().await;
     assert_eq!(workers.len(), 1);
@@ -169,18 +250,149 @@ async fn hello_registers_worker() {
 }
 
 #[tokio::test]
-async fn heartbeat_updates_registry() {
+async fn hello_without_enrollment_is_rejected() {
     let (ws_addr, _http_addr, _enrollment, registry, _ts) = start_brain().await;
 
     let mut ws = connect_ws(&ws_addr).await;
-
     ws.send(send_json(&WorkerMessage::hello(
-        "hb-worker".into(),
+        "intruder".into(),
+        "made-up-secret".into(),
+        "admin".into(),
+        vec!["system.info".into()],
+    )))
+    .await
+    .unwrap();
+
+    assert_eq!(
+        recv_brain(&mut ws).await,
+        BrainMessage::error(hermes_brain::HELLO_AUTH_FAILED)
+    );
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(registry.list().await.is_empty());
+}
+
+#[tokio::test]
+async fn hello_with_wrong_secret_is_rejected() {
+    let (ws_addr, _http_addr, enrollment, registry, _ts) = start_brain().await;
+
+    let mut ws = connect_ws(&ws_addr).await;
+    let _secret = enroll(&mut ws, &enrollment, "victim", "dev", vec![]).await;
+    ws.close(None).await.unwrap();
+    wait_until_disconnected(&registry, "victim").await;
+
+    let mut ws = connect_ws(&ws_addr).await;
+    ws.send(send_json(&WorkerMessage::hello(
+        "victim".into(),
+        "wrong-secret".into(),
         "dev".into(),
         vec![],
     )))
     .await
     .unwrap();
+
+    assert_eq!(
+        recv_brain(&mut ws).await,
+        BrainMessage::error(hermes_brain::HELLO_AUTH_FAILED)
+    );
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(registry.get("victim").await.is_none());
+}
+
+#[tokio::test]
+async fn duplicate_live_worker_id_is_rejected() {
+    let (ws_addr, _http_addr, enrollment, registry, _ts) = start_brain().await;
+
+    // First connection enrolls and stays connected.
+    let mut first = connect_ws(&ws_addr).await;
+    let secret = enroll(&mut first, &enrollment, "dup-worker", "dev", vec![]).await;
+    let original = registry.get("dup-worker").await.unwrap().connection_id;
+
+    // Second connection with the *valid* credential is still rejected.
+    let mut second = connect_ws(&ws_addr).await;
+    second
+        .send(send_json(&WorkerMessage::hello(
+            "dup-worker".into(),
+            secret.clone(),
+            "dev".into(),
+            vec![],
+        )))
+        .await
+        .unwrap();
+    match recv_brain(&mut second).await {
+        BrainMessage::Error { message } => assert!(message.contains("already connected")),
+        other => panic!("expected error, got {other:?}"),
+    }
+
+    // Enrolling the same id while it is live is rejected too, without
+    // consuming the token.
+    enrollment.add_token("tok-dup-2".into()).await;
+    let mut third = connect_ws(&ws_addr).await;
+    third
+        .send(send_json(&WorkerMessage::enroll(
+            "tok-dup-2".into(),
+            "dup-worker".into(),
+            "dev".into(),
+            vec![],
+        )))
+        .await
+        .unwrap();
+    assert!(matches!(
+        recv_brain(&mut third).await,
+        BrainMessage::Error { .. }
+    ));
+    assert_eq!(enrollment.token_count().await, 1);
+
+    // The rejected connections closing must not evict the original entry.
+    drop(second);
+    drop(third);
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    let entry = registry.get("dup-worker").await.unwrap();
+    assert_eq!(entry.connection_id, original);
+
+    // After the original disconnects, the credential works again.
+    first.close(None).await.unwrap();
+    wait_until_disconnected(&registry, "dup-worker").await;
+    let mut again = connect_ws(&ws_addr).await;
+    again
+        .send(send_json(&WorkerMessage::hello(
+            "dup-worker".into(),
+            secret,
+            "dev".into(),
+            vec![],
+        )))
+        .await
+        .unwrap();
+    assert_eq!(
+        recv_brain(&mut again).await,
+        BrainMessage::hello_accepted("dup-worker".into())
+    );
+}
+
+#[tokio::test]
+async fn task_result_from_unauthenticated_connection_is_rejected() {
+    let (ws_addr, _http_addr, _enrollment, _registry, _ts) = start_brain().await;
+
+    let mut ws = connect_ws(&ws_addr).await;
+    ws.send(send_json(&WorkerMessage::TaskResult {
+        task_id: "anything".into(),
+        success: true,
+        output: json!({}),
+    }))
+    .await
+    .unwrap();
+    assert_eq!(
+        recv_brain(&mut ws).await,
+        BrainMessage::error("not authenticated")
+    );
+}
+
+#[tokio::test]
+async fn heartbeat_updates_registry() {
+    let (ws_addr, _http_addr, enrollment, registry, _ts) = start_brain().await;
+
+    let mut ws = connect_ws(&ws_addr).await;
+
+    enroll(&mut ws, &enrollment, "hb-worker", "dev", vec![]).await;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -196,17 +408,11 @@ async fn heartbeat_updates_registry() {
 
 #[tokio::test]
 async fn disconnect_removes_worker() {
-    let (ws_addr, _http_addr, _enrollment, registry, _ts) = start_brain().await;
+    let (ws_addr, _http_addr, enrollment, registry, _ts) = start_brain().await;
 
     let mut ws = connect_ws(&ws_addr).await;
 
-    ws.send(send_json(&WorkerMessage::hello(
-        "temp-worker".into(),
-        "dev".into(),
-        vec![],
-    )))
-    .await
-    .unwrap();
+    enroll(&mut ws, &enrollment, "temp-worker", "dev", vec![]).await;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(registry.list().await.len(), 1);
@@ -241,16 +447,17 @@ async fn http_health_endpoint() {
 
 #[tokio::test]
 async fn http_list_workers_endpoint() {
-    let (ws_addr, http_addr, _enrollment, _registry, _ts) = start_brain().await;
+    let (ws_addr, http_addr, enrollment, _registry, _ts) = start_brain().await;
 
     let mut ws = connect_ws(&ws_addr).await;
-    ws.send(send_json(&WorkerMessage::hello(
-        "http-worker".into(),
-        "development".into(),
+    enroll(
+        &mut ws,
+        &enrollment,
+        "http-worker",
+        "development",
         vec!["system.info".into(), "files.read".into()],
-    )))
-    .await
-    .unwrap();
+    )
+    .await;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -271,17 +478,18 @@ async fn http_list_workers_endpoint() {
 
 #[tokio::test]
 async fn http_task_dispatch_and_execution_loop() {
-    let (ws_addr, http_addr, _enrollment, _registry, _ts) = start_brain().await;
+    let (ws_addr, http_addr, enrollment, _registry, _ts) = start_brain().await;
 
     // 1. Connect simulated worker with system.info capability
     let mut ws = connect_ws(&ws_addr).await;
-    ws.send(send_json(&WorkerMessage::hello(
-        "executor-node-01".into(),
-        "runner".into(),
+    enroll(
+        &mut ws,
+        &enrollment,
+        "executor-node-01",
+        "runner",
         vec!["system.info".into()],
-    )))
-    .await
-    .unwrap();
+    )
+    .await;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -378,16 +586,17 @@ async fn http_task_dispatch_fails_when_no_worker_available() {
 
 #[tokio::test]
 async fn task_idempotency_ignores_duplicate_results() {
-    let (ws_addr, http_addr, _enrollment, _registry, _ts) = start_brain().await;
+    let (ws_addr, http_addr, enrollment, _registry, _ts) = start_brain().await;
 
     let mut ws = connect_ws(&ws_addr).await;
-    ws.send(send_json(&WorkerMessage::hello(
-        "idempotent-worker".into(),
-        "runner".into(),
+    enroll(
+        &mut ws,
+        &enrollment,
+        "idempotent-worker",
+        "runner",
         vec!["system.info".into()],
-    )))
-    .await
-    .unwrap();
+    )
+    .await;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
