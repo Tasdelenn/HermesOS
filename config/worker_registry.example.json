@@ -1,0 +1,12 @@
+{
+  "workers": {
+    "example-worker-01": {
+      "role": "development",
+      "capabilities": [
+        "system.info"
+      ],
+      "enrolled_at": 0.0,
+      "enrollment_token": "<generated-at-runtime-never-commit>"
+    }
+  }
+}

@@ -94,3 +94,34 @@ hermes-brain-ws.service (Python prototip, :8765, ayrı)
 - Telegram bot arayüzü entegrasyonu
 - mTLS geçişi (ADR-009)
 - Uzun süreli hafıza / Obsidian entegrasyonu
+
+---
+
+# Checkpoint - 25.09.2026 (Hello Kimlik Doğrulaması + CI)
+
+## Tamamlananlar
+- **`hello` kimlik doğrulaması** ([[adr/ADR-014-Worker-Hello-Authentication|ADR-014]]):
+  enrollment sırasında Brain worker'a özel `worker_secret` üretir, yalnızca
+  SHA-256 özetini saklar (`config/brain_credentials.json`). Worker secret'ı
+  `<config>.state.json` dosyasına yazar ve sonraki başlatmalarda `hello` ile
+  gönderir. Kayıtsız / yanlış secret'lı `hello` reddedilir.
+- Aynı `worker_id` ile ikinci canlı bağlantı reddedilir; eski bağlantı yeni
+  kaydı silemez. `task_result` yalnızca doğrulanmış ve görevin atandığı
+  worker'dan kabul edilir. ASCII olmayan token maskeleme panic'i düzeltildi.
+- Protokol sürümü **2**.
+- `config/worker_registry.json` artık Git'te takip edilmiyor (`.gitignore`);
+  örnek: `config/worker_registry.example.json`.
+- CI: `.github/workflows/ci.yml` (fmt, clippy `-D warnings`, test) ve
+  `rust-toolchain.toml` (Rust 1.98.1).
+
+## Doğrulananlar
+- Workspace testleri yeşil: 57 test (brain 17 unit + 14 entegrasyon,
+  protocol 7, worker 13 unit + 6 entegrasyon).
+
+## Geçiş Notu (Breaking)
+- Mevcut worker'lar bir kez yeniden enroll olmalı:
+  `hermes-brain 127.0.0.1:9000 127.0.0.1:9001 --token <yeni-token>` ve worker
+  config'ine `registration_token=<yeni-token>`. İlk başarılı enroll'dan sonra
+  token config'ten silinebilir.
+- Python prototipi (`hermes-brain-ws.service`) yeni protokolle uyumlu değildir.
+

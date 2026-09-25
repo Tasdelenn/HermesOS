@@ -1,5 +1,6 @@
 mod capability;
 mod client;
+mod state;
 
 use std::env;
 use std::fs;
@@ -15,6 +16,9 @@ pub struct WorkerConfig {
     pub brain_url: String,
     pub registration_token: Option<String>,
     pub heartbeat_interval_secs: u64,
+    /// Where the enrollment credential is stored. Defaults to
+    /// `<config-dir>/<config-stem>.state.json` (see `state::default_state_path`).
+    pub state_file: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -32,18 +36,24 @@ async fn main() {
     });
     let config = parse_config(&contents).unwrap_or_else(|error| exit_with_error(&error));
 
-        println!("Hermes worker starting");
-        println!("worker_id: {}", config.worker_id);
-        println!("role: {}", config.role);
-        println!("brain_url: {}", config.brain_url);
+    println!("Hermes worker starting");
+    println!("worker_id: {}", config.worker_id);
+    println!("role: {}", config.role);
+    println!("brain_url: {}", config.brain_url);
 
-        let mut client = WorkerClient::connect(config)
-            .await
-            .unwrap_or_else(|error| exit_with_error(&error));
+    let state_path = config
+        .state_file
+        .clone()
+        .unwrap_or_else(|| state::default_state_path(&config_path));
+    println!("state_file: {}", state_path.display());
 
-        if let Err(error) = client.run().await {
-            exit_with_error(&error);
-        }
+    let mut client = WorkerClient::connect(config, state_path)
+        .await
+        .unwrap_or_else(|error| exit_with_error(&error));
+
+    if let Err(error) = client.run().await {
+        exit_with_error(&error);
+    }
 }
 
 fn config_path_from_args() -> Result<PathBuf, String> {
@@ -69,6 +79,7 @@ fn parse_config(contents: &str) -> Result<WorkerConfig, String> {
     let mut brain_url = None;
     let mut registration_token = None;
     let mut heartbeat_interval_secs = None;
+    let mut state_file = None;
 
     for (index, line) in contents.lines().enumerate() {
         let line_number = index + 1;
@@ -105,12 +116,11 @@ fn parse_config(contents: &str) -> Result<WorkerConfig, String> {
             "brain_url" => brain_url = Some(value.to_owned()),
             "registration_token" => registration_token = Some(value.to_owned()),
             "heartbeat_interval_secs" => {
-                heartbeat_interval_secs = Some(
-                    value
-                        .parse::<u64>()
-                        .map_err(|_| format!("heartbeat_interval_secs must be a number, got: {value}"))?,
-                );
+                heartbeat_interval_secs = Some(value.parse::<u64>().map_err(|_| {
+                    format!("heartbeat_interval_secs must be a number, got: {value}")
+                })?);
             }
+            "state_file" => state_file = Some(PathBuf::from(value)),
             unknown => return Err(format!("unknown configuration key: {unknown}")),
         }
     }
@@ -123,6 +133,7 @@ fn parse_config(contents: &str) -> Result<WorkerConfig, String> {
         brain_url: brain_url.unwrap_or_else(|| "ws://127.0.0.1:9000".to_string()),
         registration_token,
         heartbeat_interval_secs: heartbeat_interval_secs.unwrap_or(30),
+        state_file,
     })
 }
 
@@ -154,25 +165,39 @@ mod tests {
                 brain_url: "ws://brain:9000".to_string(),
                 registration_token: Some("tok-abc".to_string()),
                 heartbeat_interval_secs: 15,
+                state_file: None,
             }
         );
     }
 
     #[test]
     fn uses_defaults_for_optional_fields() {
-        let config = parse_config(
-            "worker_id=minimal\nrole=iot\ncapabilities=system.info\n",
-        )
-        .unwrap();
+        let config =
+            parse_config("worker_id=minimal\nrole=iot\ncapabilities=system.info\n").unwrap();
         assert_eq!(config.brain_url, "ws://127.0.0.1:9000");
         assert_eq!(config.registration_token, None);
         assert_eq!(config.heartbeat_interval_secs, 30);
+        assert_eq!(config.state_file, None);
+    }
+
+    #[test]
+    fn parses_state_file() {
+        let config = parse_config(
+            "worker_id=a\nrole=b\ncapabilities=system.info\nstate_file=/var/lib/hermes/a.state.json\n",
+        )
+        .unwrap();
+        assert_eq!(
+            config.state_file,
+            Some(PathBuf::from("/var/lib/hermes/a.state.json"))
+        );
     }
 
     #[test]
     fn rejects_unknown_keys() {
-        let error = parse_config("worker_id=a\nrole=b\ncapabilities=system.info\nbrain_url=x\nunknown_key=y\n")
-            .unwrap_err();
+        let error = parse_config(
+            "worker_id=a\nrole=b\ncapabilities=system.info\nbrain_url=x\nunknown_key=y\n",
+        )
+        .unwrap_err();
         assert_eq!(error, "unknown configuration key: unknown_key");
     }
 

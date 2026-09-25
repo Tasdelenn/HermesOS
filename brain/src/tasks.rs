@@ -33,7 +33,10 @@ impl TaskStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Timeout | TaskStatus::Cancelled
+            TaskStatus::Completed
+                | TaskStatus::Failed
+                | TaskStatus::Timeout
+                | TaskStatus::Cancelled
         )
     }
 }
@@ -96,7 +99,7 @@ impl TaskStore for InMemoryTaskStore {
         let map = self.tasks.lock().await;
         let mut list: Vec<TaskRecord> = map.values().cloned().collect();
         // Sort descending by created_at_ms
-        list.sort_by(|a, b| b.created_at_ms.cmp(&a.created_at_ms));
+        list.sort_by_key(|t| std::cmp::Reverse(t.created_at_ms));
         if limit > 0 && list.len() > limit {
             list.truncate(limit);
         }
@@ -237,19 +240,17 @@ impl TaskService {
             {
                 Some(wid) => wid,
                 None => {
-                    return Err(format!("no worker available with capability: {}", capability));
+                    return Err(format!(
+                        "no worker available with capability: {}",
+                        capability
+                    ));
                 }
             }
         };
 
         let mut record = self
             .task_registry
-            .create_task(
-                task_id,
-                Some(chosen_worker),
-                capability,
-                input,
-            )
+            .create_task(task_id, Some(chosen_worker), capability, input)
             .await;
 
         record.status = TaskStatus::Running;
@@ -262,13 +263,20 @@ impl TaskService {
         Ok(record)
     }
 
-    /// Process a TaskResult received over the WebSocket transport.
+    /// Process a TaskResult received over the WebSocket transport from the
+    /// authenticated `worker_id`. Results for unknown tasks or for tasks
+    /// assigned to a different worker are ignored (returns false).
     pub async fn handle_worker_result(
         &self,
+        worker_id: &str,
         task_id: &str,
         success: bool,
         output: Value,
     ) -> bool {
+        match self.task_registry.get_task(task_id).await {
+            Some(record) if record.worker_id.as_deref() == Some(worker_id) => {}
+            _ => return false,
+        }
         if success {
             self.task_registry.complete_task(task_id, output).await
         } else {
@@ -304,13 +312,21 @@ mod tests {
         assert_eq!(task.status, TaskStatus::Pending);
 
         // Complete task
-        assert!(registry.complete_task("task-1", json!({"os": "linux"})).await);
+        assert!(
+            registry
+                .complete_task("task-1", json!({"os": "linux"}))
+                .await
+        );
         let fetched = registry.get_task("task-1").await.unwrap();
         assert_eq!(fetched.status, TaskStatus::Completed);
         assert_eq!(fetched.result, Some(json!({"os": "linux"})));
 
         // Idempotency: subsequent duplicate complete should return false and not overwrite
-        assert!(!registry.complete_task("task-1", json!({"os": "windows"})).await);
+        assert!(
+            !registry
+                .complete_task("task-1", json!({"os": "windows"}))
+                .await
+        );
         let fetched_after = registry.get_task("task-1").await.unwrap();
         assert_eq!(fetched_after.result, Some(json!({"os": "linux"})));
     }
@@ -323,8 +339,14 @@ mod tests {
 
         let (tx, mut rx) = mpsc::unbounded_channel();
         worker_reg
-            .register("worker-a".into(), "dev".into(), vec!["system.info".into()], tx)
-            .await;
+            .register(
+                "worker-a".into(),
+                "dev".into(),
+                vec!["system.info".into()],
+                tx,
+            )
+            .await
+            .unwrap();
 
         let record = service
             .dispatch("system.info".into(), json!({}), None)
@@ -336,13 +358,17 @@ mod tests {
         // Worker receives task over channel
         let received = rx.recv().await.unwrap();
         match received {
-            BrainMessage::Task { task_id, capability, .. } => {
+            BrainMessage::Task {
+                task_id,
+                capability,
+                ..
+            } => {
                 assert_eq!(task_id, record.task_id);
                 assert_eq!(capability, "system.info");
 
                 // Handle worker result
                 let updated = service
-                    .handle_worker_result(&task_id, true, json!({"status": "ok"}))
+                    .handle_worker_result("worker-a", &task_id, true, json!({"status": "ok"}))
                     .await;
                 assert!(updated);
             }
@@ -351,5 +377,35 @@ mod tests {
 
         let completed = task_reg.get_task(&record.task_id).await.unwrap();
         assert_eq!(completed.status, TaskStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn result_from_other_worker_is_ignored() {
+        let task_reg = TaskRegistry::new();
+        let worker_reg = WorkerRegistry::new();
+        let service = TaskService::new(task_reg.clone(), worker_reg.clone());
+
+        let (tx, _rx) = mpsc::unbounded_channel();
+        worker_reg
+            .register(
+                "worker-a".into(),
+                "dev".into(),
+                vec!["system.info".into()],
+                tx,
+            )
+            .await
+            .unwrap();
+        let record = service
+            .dispatch("system.info".into(), json!({}), None)
+            .await
+            .unwrap();
+
+        assert!(
+            !service
+                .handle_worker_result("worker-b", &record.task_id, true, json!({}))
+                .await
+        );
+        let still_running = task_reg.get_task(&record.task_id).await.unwrap();
+        assert_eq!(still_running.status, TaskStatus::Running);
     }
 }

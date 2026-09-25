@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u16 = 1;
+/// Wire protocol version.
+///
+/// v2 (ADR-014): `enrollment_accepted` carries a per-worker `worker_secret`,
+/// `hello` must present it, and the Brain answers with `hello_accepted`.
+pub const PROTOCOL_VERSION: u16 = 2;
 
 // ---------------------------------------------------------------------------
 // Worker -> Brain messages
@@ -19,10 +23,12 @@ pub enum WorkerMessage {
         role: String,
         capabilities: Vec<String>,
     },
-    /// Identity announcement after enrollment or reconnect.
+    /// Identity announcement on reconnect. Only accepted for a previously
+    /// enrolled `worker_id` presenting the credential issued at enrollment.
     Hello {
         protocol_version: u16,
         worker_id: String,
+        worker_secret: String,
         role: String,
         capabilities: Vec<String>,
     },
@@ -44,8 +50,14 @@ pub enum WorkerMessage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BrainMessage {
-    /// Confirms a successful enrollment.
-    EnrollmentAccepted { worker_id: String },
+    /// Confirms a successful enrollment and issues the per-worker credential
+    /// the worker must persist and present in every later `hello`.
+    EnrollmentAccepted {
+        worker_id: String,
+        worker_secret: String,
+    },
+    /// Confirms that a `hello` was authenticated.
+    HelloAccepted { worker_id: String },
     /// Assigns a task to the worker.
     Task {
         task_id: String,
@@ -76,10 +88,16 @@ impl WorkerMessage {
         }
     }
 
-    pub fn hello(worker_id: String, role: String, capabilities: Vec<String>) -> Self {
+    pub fn hello(
+        worker_id: String,
+        worker_secret: String,
+        role: String,
+        capabilities: Vec<String>,
+    ) -> Self {
         Self::Hello {
             protocol_version: PROTOCOL_VERSION,
             worker_id,
+            worker_secret,
             role,
             capabilities,
         }
@@ -95,8 +113,15 @@ impl WorkerMessage {
 }
 
 impl BrainMessage {
-    pub fn enrollment_accepted(worker_id: String) -> Self {
-        Self::EnrollmentAccepted { worker_id }
+    pub fn enrollment_accepted(worker_id: String, worker_secret: String) -> Self {
+        Self::EnrollmentAccepted {
+            worker_id,
+            worker_secret,
+        }
+    }
+
+    pub fn hello_accepted(worker_id: String) -> Self {
+        Self::HelloAccepted { worker_id }
     }
 
     pub fn task(task_id: String, capability: String, input: Value) -> Self {
@@ -134,19 +159,21 @@ mod tests {
         let v = serde_json::to_value(&msg).unwrap();
         assert_eq!(v["type"], "enroll");
         assert_eq!(v["registration_token"], "tok-abc");
-        assert_eq!(v["protocol_version"], 1);
+        assert_eq!(v["protocol_version"], PROTOCOL_VERSION);
     }
 
     #[test]
     fn serializes_hello_message() {
         let msg = WorkerMessage::hello(
             "win-dev-01".into(),
+            "s3cret".into(),
             "development".into(),
             vec!["system.info".into()],
         );
         let v = serde_json::to_value(&msg).unwrap();
         assert_eq!(v["type"], "hello");
         assert_eq!(v["worker_id"], "win-dev-01");
+        assert_eq!(v["worker_secret"], "s3cret");
     }
 
     #[test]
@@ -172,15 +199,39 @@ mod tests {
     fn deserializes_enrollment_accepted() {
         let msg: BrainMessage = serde_json::from_value(json!({
             "type": "enrollment_accepted",
-            "worker_id": "win-dev-01"
+            "worker_id": "win-dev-01",
+            "worker_secret": "abc123"
         }))
         .unwrap();
         assert_eq!(
             msg,
             BrainMessage::EnrollmentAccepted {
-                worker_id: "win-dev-01".into()
+                worker_id: "win-dev-01".into(),
+                worker_secret: "abc123".into(),
             }
         );
+    }
+
+    #[test]
+    fn deserializes_hello_accepted() {
+        let msg: BrainMessage = serde_json::from_value(json!({
+            "type": "hello_accepted",
+            "worker_id": "win-dev-01"
+        }))
+        .unwrap();
+        assert_eq!(msg, BrainMessage::hello_accepted("win-dev-01".into()));
+    }
+
+    #[test]
+    fn hello_without_secret_is_rejected_by_parser() {
+        let parsed = serde_json::from_value::<WorkerMessage>(json!({
+            "type": "hello",
+            "protocol_version": PROTOCOL_VERSION,
+            "worker_id": "w",
+            "role": "dev",
+            "capabilities": []
+        }));
+        assert!(parsed.is_err());
     }
 
     #[test]
