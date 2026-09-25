@@ -48,3 +48,9 @@ npm-cache/
 
 # Python venv
 .venv/
+
+# Runtime registries / credential state (never commit)
+config/worker_registry.json
+config/brain_credentials.json
+config/*.state.json
+*.worker-state.json
