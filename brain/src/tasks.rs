@@ -99,7 +99,7 @@ impl TaskStore for InMemoryTaskStore {
         let map = self.tasks.lock().await;
         let mut list: Vec<TaskRecord> = map.values().cloned().collect();
         // Sort descending by created_at_ms
-        list.sort_by(|a, b| b.created_at_ms.cmp(&a.created_at_ms));
+        list.sort_by_key(|t| std::cmp::Reverse(t.created_at_ms));
         if limit > 0 && list.len() > limit {
             list.truncate(limit);
         }

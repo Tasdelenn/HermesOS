@@ -94,10 +94,10 @@ impl WorkerRegistry {
     pub async fn dispatch_task(&self, capability: &str, task: BrainMessage) -> Option<String> {
         let workers = self.workers.lock().await;
         for entry in workers.values() {
-            if entry.capabilities.iter().any(|c| c == capability) {
-                if entry.task_tx.send(task.clone()).is_ok() {
-                    return Some(entry.worker_id.clone());
-                }
+            if entry.capabilities.iter().any(|c| c == capability)
+                && entry.task_tx.send(task.clone()).is_ok()
+            {
+                return Some(entry.worker_id.clone());
             }
         }
         None
